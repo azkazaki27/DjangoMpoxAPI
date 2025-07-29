@@ -1,0 +1,23 @@
+# render.yaml
+services:
+  - type: web
+    name: Django-Mpox-API # Ganti dengan nama yang Anda inginkan untuk layanan web Anda
+    env: python
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput" # Menambahkan collectstatic
+    startCommand: "gunicorn API_SKRIPSI.wsgi:application --bind 0.0.0.0:$PORT" # Ganti API_SKRIPSI
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mpoxApi_db # Nama database yang akan Anda buat di Render (lihat Bagian 2.1)
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true # Render akan membuatkan secret key yang aman secara otomatis
+      - key: WEB_CONCURRENCY
+        value: 1 # Untuk free tier, biasanya 1 proses worker yang disarankan
+      - key: DEBUG_VALUE
+        value: "False" # Pastikan DEBUG False di produksi
+
+  - type: pserv # Ini untuk database PostgreSQL
+    name: mpoxApi_db # Nama database. Ganti dan samakan dengan fromDatabase.name di atas
+    region: singapore # Pilih region yang sama dengan web service Anda (misal: oregon, frankfurt)
+    plan: free # Menggunakan free tier database

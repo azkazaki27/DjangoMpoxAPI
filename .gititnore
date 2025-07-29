@@ -1,0 +1,38 @@
+# Python
+
+**pycache**/
+_.pyc
+_.pyo
+_.pyd
+.Python/
+env/
+venv/
+_.env
+.idea/ # Ignore IntelliJ/PyCharm project files
+.vscode/ # Ignore VS Code project files
+_.sqlite3
+_.db
+\*.log
+.DS_Store # macOS specific
+
+# Django specific
+
+_.pot
+_.mo
+\*.log
+local_settings.py
+media/ # Ignore user uploaded media files
+staticfiles/ # Ignore collected static files
+db.sqlite3
+/tmp/
+
+# Machine Learning specific (jika ada)
+
+_.pkl
+_.joblib
+_.h5
+_.pb
+_.pth
+_.bin
+_.npy
+_.csv # Jika Anda tidak ingin mengupload CSV yang dihasilkan

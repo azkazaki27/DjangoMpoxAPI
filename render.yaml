@@ -8,7 +8,7 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: mpoxApi_db # Nama database yang akan Anda buat di Render (lihat Bagian 2.1)
+          name: mpoxapi_db # Nama database yang akan Anda buat di Render (lihat Bagian 2.1)
           property: connectionString
       - key: SECRET_KEY
         generateValue: true # Render akan membuatkan secret key yang aman secara otomatis
@@ -18,6 +18,6 @@ services:
         value: "False" # Pastikan DEBUG False di produksi
 
   - type: pserv # Ini untuk database PostgreSQL
-    name: mpoxApi_db # Nama database. Ganti dan samakan dengan fromDatabase.name di atas
+    name: mpoxapi_db # Nama database. Ganti dan samakan dengan fromDatabase.name di atas
     region: singapore # Pilih region yang sama dengan web service Anda (misal: oregon, frankfurt)
     plan: free # Menggunakan free tier database

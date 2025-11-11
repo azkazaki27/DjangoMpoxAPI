@@ -16,7 +16,8 @@ from keras.models import Model
 from keras.preprocessing.image import img_to_array
 from skimage.feature import graycomatrix, graycoprops
 
-model_path = os.path.join(settings.BASE_DIR, 'deteksi', 'data', 'contoh_model_monkeypox.pkl')
+# --- Pemuatan Model dan Scaler (Tidak Berubah) ---
+model_path = os.path.join(settings.BASE_DIR, 'deteksi', 'data', 'model_monkeypox_RF.pkl')
 scaler_path = os.path.join(settings.BASE_DIR, 'deteksi', 'data', 'scaler_fix.pkl')
 
 with open(model_path, 'rb') as f:
@@ -25,33 +26,39 @@ with open(model_path, 'rb') as f:
 with open(scaler_path, 'rb') as f:
     scaler = joblib.load(f)
 
+# --- Pemuatan VGG19 (Tidak Berubah) ---
+base_model = VGG19(weights='imagenet', include_top=True)
+vgg_model = Model(inputs=base_model.input, outputs=base_model.get_layer('fc1').output)
+
 def homepage(request):
     return HttpResponse("Selamat datang di API Skripsi!")
 
 def index(request):
     return HttpResponse("Halaman utama Django API Skripsi")
 
-# Load VGG19 dan hilangkan layer klasifikasinya
-base_model = VGG19(weights='imagenet', include_top=True)
-vgg_model = Model(inputs=base_model.input, outputs=base_model.get_layer('fc1').output)
-
+# --- Fungsi GLCM (Tidak Berubah) ---
 def extract_glcm_features(image_gray):
     distances = [1]
     angles = [0, np.pi/4, np.pi/2, 3*np.pi/4]
-    glcm = graycomatrix(image_gray, distances=distances, angles=angles, symmetric=True, normed=True)
+    # Normalisasi tipe data (sudah benar)
+    image_gray_normalized = image_gray.astype(np.uint8)
+    glcm = graycomatrix(image_gray_normalized, distances=distances, angles=angles, symmetric=True, normed=True)
     features = []
-    props = ['contrast', 'dissimilarity', 'homogeneity', 'energy']
+    props = ['contrast', 'energy', 'homogeneity', 'correlation']
     for prop in props:
         vals = graycoprops(glcm, prop)[0]
         features.extend(vals)
-    return features  # 16 fitur
+    return features 
 
-def extract_vgg19_features(image_rgb):
-    image_resized = cv2.resize(image_rgb, (224, 224))
-    image_array = img_to_array(image_resized)
+# --- MODIFIKASI FUNGSI VGG19 ---
+# Sekarang menerima gambar yang SUDAH di-resize
+def extract_vgg19_features(image_rgb_resized):
+    # HAPUS RESIZING: image_resized = cv2.resize(image_rgb, (224, 224))
+    image_array = img_to_array(image_rgb_resized)
     image_preprocessed = preprocess_input(np.expand_dims(image_array, axis=0))
-    features = vgg_model.predict(image_preprocessed)
-    return features.flatten()  # 4096 fitur
+    # Nonaktifkan progress bar (verbose=0) agar log API bersih
+    features = vgg_model.predict(image_preprocessed, verbose=0)
+    return features.flatten()
 
 @csrf_exempt
 def predict(request):
@@ -60,41 +67,52 @@ def predict(request):
             return JsonResponse({'error': 'Gunakan metode POST'}, status=400)
 
         if 'image' not in request.FILES:
-            return JsonResponse({'error': 'File   tidak ditemukan'}, status=400)
+            return JsonResponse({'error': 'File tidak ditemukan'}, status=400)
 
         # Baca gambar dari request
         file = request.FILES['image']
         file_bytes = file.read()
         nparr = np.frombuffer(file_bytes, np.uint8)
         image_rgb = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        # Tambahkan print untuk memastikan gambar terbaca
+        
         if image_rgb is None:
             return JsonResponse({'error': 'Gagal membaca gambar. Pastikan format file benar.'}, status=400)
-        print(f"Gambar berhasil dibaca. Shape: {image_rgb.shape}")
+        print(f"Gambar berhasil dibaca. Shape Asli: {image_rgb.shape}")
 
-        image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2GRAY)
+        # --- MODIFIKASI ALUR PREPROCESSING ---
+        
+        # 1. RESIZE DULU (ke 224x224)
+        # Ini adalah langkah preprocessing yang harus sama dengan saat pelatihan
+        image_resized_224 = cv2.resize(image_rgb, (224, 224))
+        print(f"Gambar di-resize ke: {image_resized_224.shape}")
 
-        # Ekstraksi fitur
-        glcm_feat = extract_glcm_features(image_gray)
+        # 2. PERSIAPAN GRAYSCALE (Menggunakan Metode LAB)
+        # Gunakan metode yang sama dengan pelatihan Anda (Lab)
+        image_lab = cv2.cvtColor(image_resized_224, cv2.COLOR_BGR2Lab)
+        image_gray_for_glcm = image_lab[:, :, 0] # Ambil saluran L (Luminosity)
+
+        # 3. EKSTRAKSI FITUR
+        # Ekstrak GLCM dari gambar grayscale 224x224
+        glcm_feat = extract_glcm_features(image_gray_for_glcm)
         print(f"Fitur GLCM diekstraksi. Jumlah fitur GLCM: {len(glcm_feat)}")
-        print(f"Contoh fitur GLCM pertama: {glcm_feat[:5]}...") # Menampilkan 5 fitur pertama
 
-        vgg_feat = extract_vgg19_features(image_rgb)
+        # Ekstrak VGG19 dari gambar RGB 224x224
+        vgg_feat = extract_vgg19_features(image_resized_224)
         print(f"Fitur VGG19 diekstraksi. Jumlah fitur VGG19: {len(vgg_feat)}")
-        print(f"Contoh fitur VGG19 pertama: {vgg_feat[:5]}...") # Menampilkan 5 fitur pertama
 
-        # Penggabungan fitur
+        # --- AKHIR MODIFIKASI ---
+
+        # 4. Penggabungan fitur
         combined_feat = np.concatenate((glcm_feat, vgg_feat)).reshape(1, -1)
         print(f"Fitur digabungkan. Total fitur gabungan: {combined_feat.shape[1]}")
 
-        # Scaling
+        # 5. Scaling
         scaled_feat = scaler.transform(combined_feat)
         print(f"Fitur telah di-scale.")
-        print(f"Contoh fitur ter-scale pertama: {scaled_feat[0][:5]}...") # Menampilkan 5 fitur pertama setelah scaling
 
-        # Prediksi
+        # 6. Prediksi
         hasil = model.predict(scaled_feat)
-        print(f"Prediksi model: {hasil[0]}") # Nilai mentah dari prediksi
+        print(f"Prediksi model: {hasil[0]}") 
 
         return JsonResponse({'prediksi': int(hasil[0])})
 

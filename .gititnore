@@ -36,3 +36,4 @@ _.pth
 _.bin
 _.npy
 _.csv # Jika Anda tidak ingin mengupload CSV yang dihasilkan
+_.csv

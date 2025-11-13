@@ -17,7 +17,7 @@ from keras.preprocessing.image import img_to_array
 from skimage.feature import graycomatrix, graycoprops
 
 # --- Pemuatan Model dan Scaler (Tidak Berubah) ---
-model_path = os.path.join(settings.BASE_DIR, 'deteksi', 'data', 'model_skenario_18.pkl')
+model_path = os.path.join(settings.BASE_DIR, 'deteksi', 'data', 'Model_skenario_18.pkl')
 scaler_path = os.path.join(settings.BASE_DIR, 'deteksi', 'data', 'scaler_skenario_18.pkl')
 
 with open(model_path, 'rb') as f:
